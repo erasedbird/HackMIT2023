@@ -1,41 +1,65 @@
-import json
-
 import streamlit as st
 from audiorecorder import audiorecorder
+import pyperclip
+import pyautogui
+from PIL import Image
+import io
 import requests
 
-STT_API_KEY = 0 #see discord
-STT_URL = 0 #see discord
+image_test_link= "https://cdn.discordapp.com/attachments/1152649972517453844/1152765018807468092/img-LNt9zeZT68IiNZXeGcAZb56O.png"
 
-st.markdown("<h1 style='text-align: center;'>Tell us how you feel</h1>", unsafe_allow_html=True)
+def load_pil_image_from_link(image_url):
+    response = requests.get(image_url)
+    image_data = response.content
+    image_file = io.BytesIO(image_data)
+    image = Image.open(image_file)
+    return image
 
-st.write("<h3 style='text-align: center; color: lightSeaGreen;'>we'll generate the insights</h3>", unsafe_allow_html=True)
+st.write('<style>div.block-container{padding-top:0rem;}</style>', unsafe_allow_html=True)
 
-audio = audiorecorder("Click to record", "Click to stop recording")
+st.title("Reflexion Buddy")
 
+if "duration" not in st.session_state:
+    st.session_state.duration = 0
 
-if not audio.empty():
-    # To play audio in frontend:
-    st.audio(audio.export().read())  
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # To save audio to a file, use pydub export method:
-    audio.export("audio.wav", format="wav")
+# Display chat messages from history on app rerun
 
-    # Convert audio to text
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        if message["role"] == "assistant":
+            st.markdown(message["content"])
+            st.image(load_pil_image_from_link(message["image"]))
+        else:
+            st.markdown(message["content"])
+    
 
-    headers = {
-        "Content-Type": "audio/wav"
-    }
+# React to user input
+if prompt := st.chat_input("What is up?"):
+    # Display user message in chat message container
+    st.chat_message("user").markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-    with open("audio.wav", "rb") as f:
-        response = requests.post(STT_URL, auth=("apikey", STT_API_KEY), headers=headers, files={'audio.wav': f})
+    response = f"Echo: {prompt}"
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        st.markdown(response)
+        st.image(load_pil_image_from_link(image_test_link))
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": response, "image": image_test_link})
 
-    response_json = response.json()
-    response_text = json.dumps(response_json)
+with st.sidebar:
+    audio = audiorecorder("Click to record", "Click to stop recording")
 
-    # To get audio properties, use pydub AudioSegment properties:
-    st.text_area(label="Output", 
-                value=f"Frame rate: {audio.frame_rate}, Frame width: {audio.frame_width}, Duration: {audio.duration_seconds} seconds, JSON: {response_text}",
-                height=300)
-
-
+    if st.session_state.duration!= audio.duration_seconds:
+        x, y = pyautogui.position()
+        pyautogui.click(758, 912)
+        pyautogui.moveTo(x, y)
+        pyperclip.copy("text_to_copy")
+        pyautogui.press('end')
+        pyautogui.press('space')
+        pyautogui.hotkey('ctrl', 'v')
+        st.session_state.duration = audio.duration_seconds
